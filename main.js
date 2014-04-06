@@ -8,6 +8,11 @@ window.onload = function(){
 	 var drawGraph = function(data){
 
 	 	var scale = d3.scale.linear();
+
+	 	var data = data.filter(function(value,index){
+	 		return index % 100 === 0;
+	 	});
+
 	 	scale.domain([-18,12]);
 	 	scale.range([0,1]);
 
