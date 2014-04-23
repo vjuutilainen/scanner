@@ -1,74 +1,172 @@
 window.onload = function(){
 
-	 var width = window.innerWidth;
-	 var height = window.innerHeight;
+	var data;
+	var width = window.innerWidth;
+	var height = window.innerHeight;
+	var time = -1;
+	var dataCount = 0;
+
+	var fps = 30;
+
+	var barWidth = width;
 
 	var svg = d3.select('body').append('svg').attr('width',width).attr('height',height);
 
-	 var drawGraph = function(data){
+	var scale = d3.scale.linear();
+	scale.domain([-18,12]);
+	scale.range([0,1]);
 
-	 	var scale = d3.scale.linear();
+ 	var createBand = function(d,i,dataInTime,group){
 
-	 	var data = data.filter(function(value,index){
-	 		return index % 100 === 0;
-	 	});
+ 		var rowIndex = i;
 
-	 	scale.domain([-18,12]);
-	 	scale.range([0,1]);
+ 		// starts at 6
+ 		var thisData = d.slice(6,d.length);
 
-	 	var createBand = function(d,i){
+ 		d3.select(group).selectAll('rect').data(thisData).enter()
+ 						.append('rect')
+ 						.attr('width',function(d,i){
+ 							return barWidth;
+ 						})
+ 						.attr('height',function(d,i){
+ 							return height/thisData.length;
+ 						})
+				 		.attr('x',function(d,i){
+				 			return width-barWidth;
+				 		})
+				 		.attr('y',function(d,i){
+				 			return i*(height/thisData.length);
+				 		})
+				 		.attr('opacity',function(d,i){
+				 			return scale(d);
+				 		})
+				 		.attr('fill','red')
+				 		.attr('opacity',function(d,i){
+				 			return scale(d);
+				 		});
+				 		
+ 	};
 
-	 		var rowIndex = i;
+	var moveInTime = function(){
 
-	 		var thisData = d.slice(6);
+			time += 1;
 
-	 		d3.select(this).selectAll('rect').data(thisData).enter()
-	 						.append('rect')
-	 						.attr('width',function(d,i){
-	 							return Math.ceil(width/data.length);
-	 						})
-	 						.attr('height',function(d,i){
-	 							return height/thisData.length;
-	 						})
-					 		.attr('x',function(d,i){
-					 			return rowIndex*(width/data.length);
-					 		})
-					 		.attr('y',function(d,i){
-					 			return i*(height/thisData.length);
-					 		})
-					 		.attr('opacity',function(d,i){
-					 			return scale(d);
-					 		})
-					 		.attr('fill','red');
-					 		
+	 		var dataInTime = data.slice(time,time+1);
 
-			d3.select(this).append('text')
-							.text(d[1]).attr('fill','rgba(255,255,255,0.6)')
-							.attr('y',height)
-							.attr('font-family','Helvetica')
-							.attr('font-size','10px')
+	 		// if there is still data in the current dataset
+	 		
+	 		if(time < 1000){
 
-							.attr('transform',function(){
-								return 'rotate(-90 '+(rowIndex*(width/data.length)+(width/data.length)/2)+' '+(height)+')';
-							})
-							.attr('x',function(d,i){
-					 			return rowIndex*(width/data.length)+(width/data.length)/2;
-					 		});
+		 	var dataFeed = svg.selectAll('.bar')
+		 		.data(dataInTime,function(d){
+		 			// use time column as the key
+		 			return d[1];
+		 		});
 
-	 	};
+		 	//exiting elements
+		 	dataFeed.exit()
+		 			.each(function(){
+		 				var current_x = parseFloat(d3.select(this).select('rect').attr('x'));
+		 				d3.select(this).selectAll('rect').attr('x',current_x-barWidth);
+		 				if(current_x < 0){
+		 					this.remove();
+		 				}
+		 			});
 
-	 	svg.selectAll('.bar')
-	 		.data(data)
-	 		.enter()
-	 		.append('g')
-	 		.attr('class','bar')
-	 		.each(createBand);
+		 	// new elements
+		 	dataFeed
+		 		.enter()
+		 		.append('g')
+		 		.attr('class','bar')
+		 		.each(function(d,i){
+		 			createBand(d,i,dataInTime,this);
+		 		});
+
+		 	 // text
+		 	
+		 	var textFeed = svg.selectAll('text')
+		 		.data(dataInTime,function(d){
+		 			// use time column as the key
+		 			return d[1];
+		 		});
+
+		
+		 	textFeed
+		 		.enter()
+		 		.append('text')
+		 		.text(function(d,i){
+		 			return d[1];
+		 		})
+		 		.attr('x',4)
+		 		.attr('y',20)
+		 		.attr('font-family','Helvetica')
+		 		.attr('fill','white');
+
+		 	textFeed.exit().remove();
+
+		 	}
+
+		 	
+		 	// if we need to move to the next dataset
+		 	else{
+		 		
+		 		 dataReady = false;
+			 	 time = -1;
+		 		 dataCount += 1;
+		 		 
+		 		 // if there is still another dataset
+		 		 if(dataCount < 17){
+
+		 		 	loadData(dataCount,function(){
+		 		 		moveInTime(time);
+		 		 	});
+		 		 }
+		 	}
+
+		 	};
+
+	var loadData = function(datacount,callback){
+		d3.json('data/log_'+datacount+'.json',function(jsondata){
+			console.log("loaded data " + datacount);
+			data = jsondata;
+			dataReady = true;
+			callback();
+		});
 	}
 
-	d3.json('scannerdata.json',function(data){
-		drawGraph(data);
-	})
+	var bigBang = function(){
 
+			var tick = function(){
+			
+			if(dataReady == true){
+
+				moveInTime();
+				
+				setTimeout(function(){
+					requestAnimationFrame(tick);
+				},1000/fps);
+
+			}
+
+			else{
+
+				setTimeout(function(){
+					requestAnimationFrame(tick);
+				},1000/fps);
+
+			}
+
+			}
+
+			requestAnimationFrame(tick);
+
+	}
+
+	loadData(dataCount,function(){
+	
+		bigBang();
+	});
+	
 
 
 }
